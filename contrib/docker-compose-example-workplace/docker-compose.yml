@@ -120,25 +120,76 @@ services:
       timeout: 10s
       retries: 120
 
+  enterprisesearch:
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+      kibana:
+        condition: service_healthy
+    image: docker.elastic.co/enterprise-search/enterprise-search:${STACK_VERSION}
+    volumes:
+      - certs:/usr/share/enterprise-search/config/certs
+      - enterprisesearchdata:/usr/share/enterprise-search/config
+    ports:
+      - ${ENTERPRISE_SEARCH_PORT}:3002
+    environment:
+      - SERVERNAME=enterprisesearch
+      - secret_management.encryption_keys=[${ENCRYPTION_KEYS}]
+      - allow_es_settings_modification=true
+      - elasticsearch.host=https://elasticsearch:9200
+      - elasticsearch.username=elastic
+      - elasticsearch.password=${ELASTIC_PASSWORD}
+      - elasticsearch.ssl.enabled=true
+      - elasticsearch.ssl.certificate_authority=/usr/share/enterprise-search/config/certs/ca/ca.crt
+      - kibana.external_url=http://kibana:5601
+    mem_limit: ${MEM_LIMIT}
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl -s -I http://localhost:3002 | grep -q 'HTTP/1.1 302 Found'",
+        ]
+      interval: 10s
+      timeout: 10s
+      retries: 120
+
+  # Apache Httpd service (to serve local files)
+  httpd:
+    image: httpd:2.4
+    restart: on-failure
+    volumes:
+      - ../../test-documents/src/main/resources/documents/:/usr/local/apache2/htdocs/:ro
+    ports:
+      - 80:80
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl -s -I http://localhost | grep -q 'HTTP/1.1 302 Found'",
+        ]
+      interval: 10s
+      timeout: 10s
+      retries: 120
+
   # FSCrawler
   fscrawler:
     image: dadoonet/fscrawler:$FSCRAWLER_VERSION
     container_name: fscrawler
-    restart: always
+    restart: on-failure
     volumes:
       - ../../test-documents/src/main/resources/documents/:/tmp/es:ro
       - ${PWD}/config:/root/.fscrawler
       - ${PWD}/logs:/usr/share/fscrawler/logs
       - ${PWD}/external:/usr/share/fscrawler/external
     depends_on:
-      elasticsearch:
+      enterprisesearch:
         condition: service_healthy
-    ports:
-      - ${FSCRAWLER_PORT}:8080
-    command: fscrawler idx --restart --rest
+    command: fscrawler idx --restart
 
 volumes:
   certs:
+    driver: local
+  enterprisesearchdata:
     driver: local
   esdata:
     driver: local
