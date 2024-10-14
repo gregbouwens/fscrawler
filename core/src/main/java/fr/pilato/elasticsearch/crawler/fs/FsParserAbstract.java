@@ -19,20 +19,11 @@
 
 package fr.pilato.elasticsearch.crawler.fs;
 
-import fr.pilato.elasticsearch.crawler.fs.beans.Attributes;
-import fr.pilato.elasticsearch.crawler.fs.beans.Doc;
-import fr.pilato.elasticsearch.crawler.fs.beans.Folder;
-import fr.pilato.elasticsearch.crawler.fs.beans.FsJob;
-import fr.pilato.elasticsearch.crawler.fs.beans.FsJobFileHandler;
-import fr.pilato.elasticsearch.crawler.fs.beans.ScanStatistic;
+import fr.pilato.elasticsearch.crawler.fs.beans.*;
 import fr.pilato.elasticsearch.crawler.fs.crawler.FileAbstractModel;
 import fr.pilato.elasticsearch.crawler.fs.crawler.FileAbstractor;
 import fr.pilato.elasticsearch.crawler.fs.crawler.fs.FileAbstractorFile;
-import fr.pilato.elasticsearch.crawler.fs.framework.ByteSizeValue;
-import fr.pilato.elasticsearch.crawler.fs.framework.FSCrawlerLogger;
-import fr.pilato.elasticsearch.crawler.fs.framework.FsCrawlerUtil;
-import fr.pilato.elasticsearch.crawler.fs.framework.OsValidator;
-import fr.pilato.elasticsearch.crawler.fs.framework.SignTool;
+import fr.pilato.elasticsearch.crawler.fs.framework.*;
 import fr.pilato.elasticsearch.crawler.fs.service.FsCrawlerDocumentService;
 import fr.pilato.elasticsearch.crawler.fs.service.FsCrawlerManagementService;
 import fr.pilato.elasticsearch.crawler.fs.settings.FsSettings;
@@ -41,7 +32,9 @@ import fr.pilato.elasticsearch.crawler.fs.tika.TikaDocParser;
 import fr.pilato.elasticsearch.crawler.fs.tika.XmlDocParser;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.tika.metadata.Metadata;
 
+import java.io.File;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.NoSuchFileException;
@@ -216,7 +209,8 @@ public abstract class FsParserAbstract extends FsParser {
 
     /**
      * Update the job metadata
-     * @param jobName job name
+     *
+     * @param jobName  job name
      * @param scanDate last date we scan the dirs
      * @throws Exception In case of error
      */
@@ -447,8 +441,14 @@ public abstract class FsParserAbstract extends FsParser {
                 // https://github.com/dadoonet/fscrawler/issues/185 : Support Xml files
                 doc.setObject(XmlDocParser.generateMap(inputStream));
             } else {
+                // Custom metadata extraction here
                 // Extracting content with Tika
                 TikaDocParser.generate(fsSettings, inputStream, filename, fullFilename, doc, messageDigest, filesize);
+                // Add custom metadata using the CustomMetadataExtractor
+                CustomMetadataExtractor metadataExtractor = new CustomMetadataExtractor();
+                Metadata extractedMetadata = metadataExtractor.extractCustomMetadata(inputStream);
+                doc.setCustomMetadata("custom:keywords", extractedMetadata.get("custom:keywords"));
+                doc.setCustomMetadata("custom:documentType", extractedMetadata.get("custom:documentType"));
             }
 
             // We index the data structure
@@ -520,8 +520,9 @@ public abstract class FsParserAbstract extends FsParser {
 
     /**
      * Index a folder object in elasticsearch
-     * @param id        id of the folder
-     * @param folder    path object
+     *
+     * @param id     id of the folder
+     * @param folder path object
      */
     private void indexDirectory(String id, Folder folder) throws IOException {
         if (!closed) {
@@ -534,6 +535,7 @@ public abstract class FsParserAbstract extends FsParser {
 
     /**
      * Index a directory
+     *
      * @param path complete path like "/", "/path/to/subdir", "C:\\dir", "C:/dir", "/C:/dir", "//SOMEONE/dir"
      */
     private void indexDirectory(String path) throws Exception {

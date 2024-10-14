@@ -19,6 +19,7 @@
 
 package fr.pilato.elasticsearch.crawler.fs.beans;
 
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -34,6 +35,8 @@ public class Doc {
     private Attributes attributes;
     private Map<String, Object> object;
     private Map<String, Object> external;
+    // New field for custom metadata
+    private Map<String, Object> customMetadata = new HashMap<>();
 
     public Doc() {
         meta = new Meta();
@@ -45,6 +48,14 @@ public class Doc {
     public Doc(String content) {
         this();
         this.content = content;
+    }
+
+    public void setCustomMetadata(String key, Object value) {
+        this.customMetadata.put(key, value);
+    }
+
+    public Map<String, Object> getCustomMetadata() {
+        return customMetadata;
     }
 
     public Map<String, Object> getObject() {
